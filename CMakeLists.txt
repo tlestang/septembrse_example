@@ -4,7 +4,9 @@ project(snail)
 set(CPP_SRC_DIR src/cpp)
 
 add_subdirectory(pybind11)
-pybind11_add_module(extension
-  ${CPP_SRC_DIR}/ext.cpp
-)
-install(TARGETS extension LIBRARY DESTINATION .)
+pybind11_add_module(example
+  ${CPP_SRC_DIR}/ddot.cpp
+  )
+find_package(BLAS)
+target_link_libraries(example PRIVATE ${BLAS_LIBRARIES})
+install(TARGETS example LIBRARY DESTINATION .)
