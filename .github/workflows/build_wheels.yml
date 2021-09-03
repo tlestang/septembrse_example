@@ -30,7 +30,7 @@ jobs:
       - name: Build wheels on Linux and MacOS
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
-          CIBW_BEFORE_ALL_LINUX: "apt update && apt install libopenblas-dev"
+          CIBW_BEFORE_ALL_LINUX: "yum -y update && yum -y install openblas-devel"
 
       - uses: actions/upload-artifact@v2
         with:
