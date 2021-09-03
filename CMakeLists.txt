@@ -8,5 +8,11 @@ pybind11_add_module(example
   ${CPP_SRC_DIR}/ddot.cpp
   )
 find_package(BLAS)
+find_path(BLAS_INCLUDE_DIRS cblas.h
+  /usr/include
+  /usr/local/include
+  /usr/include/openblas
+  $ENV{BLAS_HOME}/include)
+target_include_directories(example PRIVATE ${BLAS_INCLUDE_DIRS})
 target_link_libraries(example PRIVATE ${BLAS_LIBRARIES})
 install(TARGETS example LIBRARY DESTINATION .)
