@@ -17,3 +17,7 @@ RUN pyenv install 3.8.6
 RUN pyenv global 3.8.6
 
 USER user
+
+# pre-install build-deps to speed up demo
+# (they will be cached)
+RUN python -m pip install scikit-build cmake setuptools wheel
