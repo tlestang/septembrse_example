@@ -1,0 +1,213 @@
+#+TITLE: What's the deal with Python wheels?
+
+This walkthrough covers a fundamental aspect of Python packaging, the
+wheel distribution format. A wheel is a way to transport a Python
+package, for instance to share it with others, making sure it remains
+installable on a wide range of systems. In most situations, a Python
+wheel is is downloaded when yu ~pip install~ a package that is not
+present or cached on your system.
+
+#+begin_example
+$ pip install numpy
+Collecting numpy
+  Downloading numpy-1.21.2-cp39-cp39-manylinux_2_12_x86_64.manylinux2010_x86_64.whl (15.8 MB)
+     |████████████████████████████████| 15.8 MB 65 kB/s 
+Installing collected packages: numpy
+Successfully installed numpy-1.21.2  
+#+end_example
+
+That file
+~numpy-1.21.2-cp39-cp39-manylinux_2_12_x86_64.manylinux2010_x86_64.whl~
+is a Python wheel. It contains everything needed to install NumPy 1.21
+in your Python package directory. NumPy is a big package, a part of
+its source being written in C with dependencies on lower-level linear
+algebra libraries such as OpenBLAS. How is it downloading and
+installing in a few seconds? Should you not make sure your have
+OpenBLAS installed before?
+
+Since 2012, The Python wheel is the standard recommended format for
+distributing Python packages. It addresses many shortcomings of other
+distribution formats like source distributions (~sdist~) or Python
+eggs (~bdist_eggs~).
+
+Starting from building and sharing /source/ distributions, this
+walkthrough motivates the need for a /built/ distribution format. It
+illustrates the build and installation of wheels based on a simple
+example package and discuss the case of GNU/Linux distributions and
+the manylinux tag. Finally, it introduces ~cibuildwheel~, a Python
+utility running on Continuous Integration systems capable of
+automating the build of wheels.
+
+* Example package
+  #+begin_src shell :results output
+    find src
+  #+end_src
+
+  #+RESULTS:
+  : src
+  : src/cpp
+  : src/cpp/ddot.cpp
+  : src/example_pkg
+  : src/example_pkg/__init__.py
+
+  One function ~dot_product~ that returns the dot product of two
+  lists. This function calls another function ~ddot~, implemented
+  inside a C++ extension module. This C++ function itself depends on
+  the ~cblas_ddot~, which is one of the level 1 BLAS functions. These
+  are provided by external libraries such as GSL, OpenBLAS or MKL.
+
+  This is an overly complicated way for implementing a dot product,
+  but useful to illustrate the behavior and benefits of Python wheels.
+
+  Alongside the source is a setup script, using ~scikit-build~ to
+  interface with CMake.
+  #+begin_src python
+    """Setup example package
+    """
+    from setuptools import find_packages
+    from skbuild import setup
+    
+    setup(
+	name='septembrse',
+	license='GPLv3',
+	description='A simple example package for the walkthrough',
+	author='Thibault Lestang',
+	author_email='thibault.lestang@protonmail.com',
+	packages=find_packages('src'),
+	package_dir={'': 'src'},
+	cmake_install_dir="src/example_pkg",
+    )
+  #+end_src
+  
+* Source distributions
+
+  Pretend that we want to share this package with a friend.
+
+  First option is to put everything in an archive:
+  #+begin_src shell
+	tar -cf septembrse-0.0.0.tar.gz \
+	    pyproject.toml \
+	    setup.py \
+	    CMakeLists.txt \
+	    pybind11 \
+	    src
+  #+end_src
+
+  Better done autmatically using ~setuptools~:
+  #+begin_src shell
+    python setup.py sdist
+  #+end_src
+
+  This creates a ~source distribution~, that contains all the files
+  necessary to build and install the package. It also embarks some
+  metadata (~PKG-INFO~). Lots of formats available:
+
+  #+begin_src shell :results output
+    python setup.py sdist --help-formats
+  #+end_src
+
+  #+RESULTS:
+  : List of available source distribution formats:
+  :   --formats=bztar  bzip2'ed tar-file
+  :   --formats=gztar  gzip'ed tar-file
+  :   --formats=tar    uncompressed tar file
+  :   --formats=xztar  xz'ed tar-file
+  :   --formats=zip    ZIP file
+  :   --formats=ztar   compressed tar file
+  
+  You can give an ~sdist~ to ~pip~
+
+  #+begin_src shell
+    pip install dist/septembrse-0.0.0.tar.gz
+  #+end_src
+
+  This runs the ~setup.py~ script. It
+  1. Installs the build tools (~setuptools~, ~cmake~, ~scikit-build~)
+  2. Writes metadata
+  3. Compiles the extension module
+  4. Bundles everything together and copies it to the right
+     install location.
+ 
+  Easy enough. We bundled our package's sources into a archive and now
+  we can share it to our friends so they can install with ~pip~ in the
+  same way. On the friends laptop, we try to install the package:
+
+  #+begin_example
+    $ docker run -it -v `pwd`/dist:/home/user/dist pyenv
+    user@ee08067a19d3:~$ pip install dist/septembrse-0.0.0.tar.gz
+    Processing ./dist/septembrse-0.0.0.tar.gz
+      ERROR: Command errored out with exit status 1:
+      ...
+      Complete output (127 lines):
+      ... 
+      -- Could NOT find BLAS (missing: BLAS_LIBRARIES)
+      -- Configuring done
+      CMake Error: The following variables are used in this project, but they are set to NOTFOUND.
+  #+end_example
+
+  Our friend cannot install the package since they don't have a BLAS library
+  installed!
+  #+begin_src shell
+    apt install libopenblas-dev
+  #+end_src
+
+  When installing a sdist, the ~setup.py~ script is run. This is a
+  scurity issue:
+
+  #+begin_src python
+    # setup.py
+    
+    print("""
+    
+    
+    My MALICIOUS CODE here
+    
+    
+    
+    """)
+    
+    setup( # ...
+    )
+  #+end_src
+
+* Built distributions
+
+  Alternative to source distributions. Setup script is run once to
+  create the distribution. Installing from the built distribution
+  doesn't require to run to run it, files are just extracted and
+  copied to the right location. If the package contains extension
+  module, these are compiled once when building the distribution.
+  In this case the distribution is a /binary distribution/.
+
+  Since 2012 the standard for built distributions is Python wheels.
+  It adresses many of the shortcomings of Python eggs, which was the
+  previous widely used (but not standard) built distribution format.
+
+  A wheel is built using ~setuptools~ with the ~wheel~ package.
+
+  #+begin_src shell
+    python setup.py bdist_wheel
+  #+end_src
+
+  In contrast to making a sdist, this performs a "fake" install of the
+  the package and bundles the result inside an archive. Part of this
+  install process is compiling the extension modules.
+
+  Binary wheels are platform and python-version specific.  You need to
+  build a wheel for each platform, for each python version you want to
+  support. This can be tedious and error prone, but we'll see how to
+  automate that (~cibuildwheel~).
+
+  A pure python wheel is a wheel with no binary code in it. This has
+  a special tag ~none~. Can be used everywhere.
+
+  Benefits of using wheels include:
+  - Smaller files
+  - Faster installation (just copying files around)
+  - No execution of arbitrary Python code
+  - Users don't have to have to build time requirements
+  - Descriptive names (platform, python version)
+
+* manylinux
+
+  
