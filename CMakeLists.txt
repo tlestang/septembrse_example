@@ -7,6 +7,8 @@ add_subdirectory(pybind11)
 pybind11_add_module(example
   ${CPP_SRC_DIR}/ddot.cpp
   )
+# To find Homebrew's openblas on macos
+set(DCMAKE_PREFIX_PATH "/usr/local/opt/lapack;/usr/local/opt/openblas")
 find_package(BLAS)
 find_path(BLAS_INCLUDE_DIRS cblas.h
   /usr/include
