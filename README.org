@@ -310,6 +310,41 @@ automating the build of wheels.
   build the wheel on a system with glibc 2.24 the wheel will work on
   any GNU/Linux system with a version of glibc below or equal to 2.24.
 
-  
-  
-  
+  Let's produce the manylinux wheel with ~auditwheel repair~:
+  #+begin_src shell
+    auditwheel repair septembrse-0.0.0-cp38-cp38-linux_x86_64.whl
+  #+end_src
+
+  A new direcoty ~wheelhouse~ was created with out manylinux wheel in it.
+
+** Runtime dependency on OpenBLAS
+
+   There's is one detail I glossed over.
+
+   Our C extension module has dynamics dependencies to various shared
+   libraries.
+
+   #+begin_src shell
+     root@221b30d4d160:/io# ldd example_pkg/example.cpython-38-x86_64-linux-gnu.so 
+	     linux-vdso.so.1 (0x00007ffd2dfed000)
+	     libopenblas.so.0 => /usr/lib/libopenblas.so.0 (0x00007ff591260000)
+	     libstdc++.so.6 => /usr/lib/x86_64-linux-gnu/libstdc++.so.6 (0x00007ff590ede000)
+	     libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007ff590bda000)
+	     libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007ff5909c3000)
+	     libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007ff590624000)
+	     libpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007ff590407000)
+	     libgfortran.so.3 => /usr/lib/x86_64-linux-gnu/libgfortran.so.3 (0x00007ff5900e1000)
+	     /lib64/ld-linux-x86-64.so.2 (0x00007ff5935d1000)
+	     libquadmath.so.0 => /usr/lib/x86_64-linux-gnu/libquadmath.so.0 (0x00007ff58fea2000)
+   #+end_src
+
+   Most of them are libraries you'd find on many GNU/Linux systems and
+   therefore no problem.  Our extension module was linked against the
+   OpenBLAS shared library that is not pre-installed. Further
+   different linux distributions package differnt versions and that's
+   going to make the wheel unusable on another system.
+
+   Python wheels can embed external shared libraries such a
+   libopenblas.  This makes the wheel self-contained and thereofre
+   portable.  The bundling of external shared libraries is performed
+   by ~auditwheel repair~.
