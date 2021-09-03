@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """Setup example package
 """
 from setuptools import find_packages
