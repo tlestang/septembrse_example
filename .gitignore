@@ -1,0 +1,10 @@
+.python-version
+*~
+MANIFEST
+_skbuild/
+dist/
+*.whl
+*.tar.gz
+wheelhouse/
+*.dist-info/
+example_pkg/
