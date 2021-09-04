@@ -4,7 +4,7 @@
 
 namespace py = pybind11;
 
-double dot_prod(py::array_t<double> Xpy, py::array_t<double> Ypy) {
+double ddot(py::array_t<double> Xpy, py::array_t<double> Ypy) {
 
   auto x = Xpy.unchecked<1>();
   auto y = Ypy.unchecked<1>();
@@ -32,5 +32,5 @@ double dot_prod(py::array_t<double> Xpy, py::array_t<double> Ypy) {
 PYBIND11_MODULE(example, m) {
     m.doc() = "pybind11 example plugin"; // optional module docstring
 
-    m.def("dot_prod", &dot_prod, "A function which computes the dot product of two vectors.");
+    m.def("ddot", &ddot, "A function which computes the dot product of two vectors.");
 }
