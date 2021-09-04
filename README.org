@@ -50,71 +50,116 @@ There are mainly three sections to this walktrough:
 
 * Building a wheel distribution
 
-  Alternative to source distributions. Setup script is run once to
-  create the distribution. Installing from the built distribution
-  doesn't require to run to run it, files are just extracted and
-  copied to the right location. If the package contains extension
-  module, these are compiled once when building the distribution.
-  In this case the distribution is a /binary distribution/.
-
-  Since 2012 the standard for built distributions is Python wheels.
-  It adresses many of the shortcomings of Python eggs, which was the
-  previous widely used (but not standard) built distribution format.
-
   A wheel is built using ~setuptools~ with the ~wheel~ package.
 
   #+begin_src shell
     python setup.py bdist_wheel
   #+end_src
 
-  In contrast to making a sdist, this performs a "fake" install of the
-  the package and bundles the result inside an archive. Part of this
-  install process is compiling the extension modules.
+  Let's look at what is happening under the hood.
 
-  Binary wheels are platform and python-version specific.  You need to
-  build a wheel for each platform, for each python version you want to
-  support. This can be tedious and error prone, but we'll see how to
-  automate that (~cibuildwheel~).
+  1. We start with some CMake output. The C++ extension module
+     ~example~ is compiled.
 
-  A pure python wheel is a wheel with no binary code in it. This has
-  a special tag ~none~. Can be used everywhere.
+     #+begin_example
+       -- Build files have been written to: /home/thibault/repos/septembrse_example/_skbuild/linux-x86_64-3.9/cmake-build
+       [ 50%] Building CXX object CMakeFiles/example.dir/src/cpp/ddot.cpp.o
+       [100%] Linking CXX shared module example.cpython-39-x86_64-linux-gnu.so
+       [100%] Built target example
+     #+end_example
 
-  Benefits of using wheels include:
-  - Smaller files
-  - Faster installation (just copying files around)
-  - No execution of arbitrary Python code
-  - Users don't have to have to build time requirements
-  - Descriptive names (platform, python version)
+   2. Then there is a succesion of creating temporary directories and
+	copying files around. Ultimately, both the the Python source
+	files and the compiled extension are copied into the ~wheel/~
+	directory.
+
+   3. The third step is writing some metadata about the package itself
+      and its build. So far this is exactly what happens when you
+      install a Python package. Except this time it is install into
+      this temporary ~wheel/~ directory instead of your local package
+      directory.
+
+   4. The final step is taking the content of that ~wheel~ direcotry
+      and putting its content into a zip archive. The ~wheel~
+      directory is removed.
+
+  What we learn from this is that a wheel distribution is a zip
+  archive that contains the installed form of a Python package.
+  #+begin_example
+    unzip -l dist/septembrse-0.0.0-cp39-cp39-linux_x86_64.whl
+    Archive:  dist/septembrse-0.0.0-cp39-cp39-linux_x86_64.whl
+      Length      Date    Time    Name
+    ---------  ---------- -----   ----
+	   15  2021-09-04 09:02   example_pkg/__init__.py
+	93400  2021-09-04 09:02   example_pkg/example.cpython-39-x86_64-linux-gnu.so
+	  241  2021-09-04 09:02   septembrse-0.0.0.dist-info/METADATA
+	   97  2021-09-04 09:02   septembrse-0.0.0.dist-info/WHEEL
+	   12  2021-09-04 09:02   septembrse-0.0.0.dist-info/top_level.txt
+	  495  2021-09-04 09:02   septembrse-0.0.0.dist-info/RECORD
+    ---------                     -------
+	94260                     6 files
+    
+  #+end_example
+
+  Now when you install this wheel, all ~pip~ has to do is copy the
+  files into your local package directory. It doesn't have to run the
+  ~setup.py~ script - all the hard work is already done. Notice that
+  the ~setup.py~ script isn't even contained inside the wheel.
+
+  The immediate benefit of this is that I can now share my package
+  with my friends, and they don't have to worry about building it.
+  They don't have to worry about setuptools, scikit-build, CMake,
+  OpenBLAS. They just ~pip install~ and use the package. Its also a
+  smaller file to share.
+
+
+  The downside is that - if my wheel contains compiled code - it is
+  platform and python version specific. If its purely Python, I can
+  share it with the world and don't worry about portability. If it's
+  not, then I'm going to have to build the wheel for each plaftform,
+  for each python version I want to support.
+
 
 * manylinux
 
-  On GNU/Linux, virtually every executable or shared library will have
-  a dynamic dependency on the GNU standard c library (/glibc/). This
-  library is responsible for interfacing with the Linux kernel.
+  Now let's focus on the case of GNU/Linux, for which there is an
+  added complication.  On GNU/Linux, virtually every executable or
+  shared library has a dynamic dependency on the GNU standard c
+  library (/glibc/). This library is responsible for interfacing with
+  the Linux kernel. When you run code from a compiled Python
+  extension, this extension is expecting to be able to find some
+  symbols (constants, functions) in glibc shared library.
 
-  This is a problem because not all GNU/Linux distros come with the
-  same version of /glibc/. This is true between older and recent
-  versions of the same distributions, but also possible between
-  distributions of the same generation. Programs linked against newer
-  version of glibc will not work on a different system with an older
-  version.
+  Now, newer glibc versions are not garanteed to work with older ones.
+  This is a problem because different GNU/Linux distros come with the
+  different versions of /glibc/. If you build your wheel the latest
+  Ubuntu, it's unlikely to work on an older distribution with an older
+  glibc.
 
-  Fortunately glibc developers ensure that the opposite is true: a
-  program linked against an older version is guaranteed to work with a
-  newer version. This is known as backward compatibility. This means
-  that by building our wheels on older GNU/Linux systems we can make
-  sure they will be usable on a large set of GNU/Linux distros out
-  there: on /manylinux/ distributions.
+  The opposite, however, is true. It is garanteed that code linked
+  against an older version of glibc wilkl work with a newer one.  So
+  in order to build portable wheels, that work on /manylinux/
+  distributions, we want to be doing so on older systems that ship
+  with older versions of glibc.
+
+  All of this is irrelevant if your package is purely Python code.
+  But if you do have one or more extension modules, you need to think
+  about that.
+
+  As a Python packager, you don't have to find and install an old
+  CentOS 5 image in order to build your wheels. There is a group of
+  people named the [[https://www.pypa.io/en/latest/][Python Packaging Authority]] who maintains a set of
+  docker images you can use to build your wheels inside.
 
   We don't have to it ourselves. They're is a group of people named
-  the [[https://www.pypa.io/en/latest/][Python Packaging Authority]] that take care of maintaining
+  ]] that take care of maintaining
   projects used in Python packaging (e.g. PyPI). They maintain [[https://github.com/pypa/manylinux#docker-images][a set
   of Docker images]] you can use to buiold your wheels in.
 
-  For instance a Debian 9 (stretch) image that contains glibc 2.24:
+  For instance the ~manylinux2014~ image is based on CentOS 7:
   
   #+begin_src shell
-    docker run -i -t -v `pwd`:/io quay.io/pypa/manylinux_2_24_x86_64 /bin/bash
+    docker run -i -t -v `pwd`:/io quay.io/pypa/manylinux2014_x86_64 /bin/bash
   #+end_src
 
   Manylinux images contain all currently supported Python versions:
@@ -123,8 +168,8 @@ There are mainly three sections to this walktrough:
     cp310-cp310  cp36-cp36m  cp37-cp37m  cp38-cp38	cp39-cp39  pp37-pypy37_pp73
   #+end_src
 
-  Let's build our wheel. First we install OpenBLAS (required to build
-  the C++ extension module).
+  Let's build our wheel for, say, Python 3.8. First we install
+  OpenBLAS (required to build the C++ extension module).
   #+begin_src shell
     apt update && apt install libopenblas-dev
   #+end_src
@@ -140,55 +185,50 @@ There are mainly three sections to this walktrough:
     -rw-r--r-- 1 root root   42127 Sep  3 09:58 septembrse-0.0.0-cp38-cp38-linux_x86_64.whl
   #+end_src
 
-  Are we good yet? Not exactly. A valid manylinux wheel should have a
-  name tag with ~manylinux~ not ~linux~. The attribution of this name
-  tag is not the job of ~pip~, but it is ~auditwheel~'s.
+  Are we good yet? Not exactly. Our wheel's platform tag is still
+  ~linux_x86_64~ as opposed to something based on ~manylinux~. The
+  platform tag is important because when ~pip~ goes to look for wheels
+  to install, the platform tag is what is helping it choose the right
+  version to download and install.
 
-  The utility ~auditwheel~ scans the wheel and decides whether or not
-  it can be attributed a ~manylinux~ tag. If yes, it creates a new
-  wheel with the correct name tag.
+  The attribution of the ~manylinux~ platform tag is not the job of
+  ~pip~, but it is ~auditwheel~'s. This utility scans the wheel and
+  decides whether or not it can be attributed a ~manylinux~ tag. If
+  yes, it creates a new wheel with the correct name tag.
 
   Let's first inspect out wheel - this only prints info, doest not
   create a new wheel yet.
 
-  #+begin_src shell
-    root@221b30d4d160:/io# auditwheel show septembrse-0.0.0-cp38-cp38-linux_x86_64.whl
+  #+begin_example
+    [root@e42ba33f35c4 io]# auditwheel show septembrse-0.0.0-cp38-cp38-linux_x86_64.whl 
     
     septembrse-0.0.0-cp38-cp38-linux_x86_64.whl is consistent with the
     following platform tag: "linux_x86_64".
     
     The wheel references external versioned symbols in these
-    system-provided shared libraries: libc.so.6 with versions
-    {'GLIBC_2.14', 'GLIBC_2.2.5', 'GLIBC_2.4', 'GLIBC_2.3.2', 'GLIBC_2.6',
-    'GLIBC_2.17', 'GLIBC_2.3.4', 'GLIBC_2.7', 'GLIBC_2.10', 'GLIBC_2.3'},
-    libgcc_s.so.1 with versions {'GCC_3.3', 'GCC_4.3.0', 'GCC_3.0',
-    'GCC_4.2.0', 'GCC_3.3.1'}, libstdc++.so.6 with versions
-    {'CXXABI_1.3.2', 'CXXABI_1.3.5', 'CXXABI_1.3.8', 'GLIBCXX_3.4.18',
-    'CXXABI_1.3.3', 'GLIBCXX_3.4', 'CXXABI_1.3', 'CXXABI_1.3.9',
-    'GLIBCXX_3.4.21', 'GLIBCXX_3.4.20'}, libm.so.6 with versions
-    {'GLIBC_2.23', 'GLIBC_2.2.5'}, libgfortran.so.3 with versions
-    {'GFORTRAN_1.0'}, libpthread.so.0 with versions {'GLIBC_2.2.5',
-    'GLIBC_2.3.2'}, libquadmath.so.0 with versions {'QUADMATH_1.0'}
+    system-provided shared libraries: libgcc_s.so.1 with versions
+    {'GCC_3.0', 'GCC_3.3', 'GCC_4.2.0', 'GCC_4.3.0', 'GCC_3.3.1'},
+    libc.so.6 with versions {'GLIBC_2.3', 'GLIBC_2.3.4', 'GLIBC_2.10',
+    'GLIBC_2.14', 'GLIBC_2.4', 'GLIBC_2.2.5', 'GLIBC_2.17'},
+    libstdc++.so.6 with versions {'CXXABI_1.3.3', 'GLIBCXX_3.4.18',
+    'CXXABI_1.3', 'GLIBCXX_3.4', 'CXXABI_1.3.2', 'CXXABI_1.3.5'},
+    libgfortran.so.3 with versions {'GFORTRAN_1.0'}, libm.so.6 with
+    versions {'GLIBC_2.2.5'}, libquadmath.so.0 with versions
+    {'QUADMATH_1.0'}
     
-    This constrains the platform tag to "manylinux_2_24_x86_64". In order
+    This constrains the platform tag to "manylinux_2_17_x86_64". In order
     to achieve a more compatible tag, you would need to recompile a new
     wheel from source on a system with earlier versions of these
     libraries, such as a recent manylinux image.
-  #+end_src
+  #+end_example
 
-  Inside the wheel there is binary code (compiled extension module)
-  that references symbols in various shared libraries. These symbols
-  (function names) they also specifiy the version of the library they
-  correspond to. If you want to learn more about this, yo can look at
-  the symbol versioning of glibc - that's how glibc devs ensure
-  backward compatibility.
+  The important information is that our wheel is valid for the
+  platform tag ~manylinux_2_17_x86_64~. This means it is expected to
+  work on any GNU/Linux system with a version of glibc equal or above
+  2.17. That's expected because the version of glibc in this Docker
+  image is 2.17.
 
-  Anyway - the important point is: every GLIBC is below 2.24 and
-  that's what we have installed in that docker image.  Because we just
-  build the wheel on a system with glibc 2.24 the wheel will work on
-  any GNU/Linux system with a version of glibc below or equal to 2.24.
-
-  Let's produce the manylinux wheel with ~auditwheel repair~:
+  To actually produce the manylinux wheel, we use the  ~auditwheel repair~ command:
   #+begin_src shell
     auditwheel repair septembrse-0.0.0-cp38-cp38-linux_x86_64.whl
   #+end_src
