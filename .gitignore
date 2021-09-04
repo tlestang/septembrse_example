@@ -8,3 +8,4 @@ dist/
 wheelhouse/
 *.dist-info/
 example_pkg/
+src/septembrse.egg-info/
