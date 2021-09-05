@@ -7,8 +7,8 @@ yum -y update && yum -y install openblas-devel
 /opt/python/cp38-cp38/bin/pip wheel .
 auditwheel show septembrse-0.0.0-cp38-cp38-linux_x86_64.whl
 auditwheel repair septembrse-0.0.0-cp38-cp38-linux_x86_64.whl
-unzip septembrse-0.0.0-cp39-cp39-linux_x86_64.whl example_pkg/example.cpython-39-x86_64-linux-gnu.so
-ldd example_pkg/example.cpython-39-x86_64-linux-gnu.so
+unzip septembrse-0.0.0-cp38-cp38-linux_x86_64.whl example_pkg/ddot.cpython-38-x86_64-linux-gnu.so
+ldd example_pkg/ddot.cpython-38-x86_64-linux-gnu.so
 unzip wheelhouse/septembrse-0.0.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl -d wheelhouse/
-ldd wheelhouse/example_pkg/example.cpython-38-x86_64-linux-gnu.so
+ldd wheelhouse/example_pkg/ddot.cpython-38-x86_64-linux-gnu.so
 
