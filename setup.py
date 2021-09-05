@@ -12,4 +12,10 @@ setup(
     packages=find_packages('src'),
     package_dir={'': 'src'},
     cmake_install_dir="src/example_pkg",
+
+    entry_points={
+        'console_scripts': [
+            'septembrse = example_pkg.dot_prod:main',
+        ]
+    },
 )

@@ -4,7 +4,7 @@ project(snail)
 set(CPP_SRC_DIR src/cpp)
 
 add_subdirectory(pybind11)
-pybind11_add_module(example
+pybind11_add_module(ddot
   ${CPP_SRC_DIR}/ddot.cpp
   )
 # To find Homebrew's openblas on macos
@@ -15,6 +15,6 @@ find_path(BLAS_INCLUDE_DIRS cblas.h
   /usr/local/include
   /usr/include/openblas
   $ENV{BLAS_HOME}/include)
-target_include_directories(example PRIVATE ${BLAS_INCLUDE_DIRS})
-target_link_libraries(example PRIVATE ${BLAS_LIBRARIES})
-install(TARGETS example LIBRARY DESTINATION .)
+target_include_directories(ddot PRIVATE ${BLAS_INCLUDE_DIRS})
+target_link_libraries(ddot PRIVATE ${BLAS_LIBRARIES})
+install(TARGETS ddot LIBRARY DESTINATION .)

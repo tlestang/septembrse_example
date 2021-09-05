@@ -29,7 +29,7 @@ double ddot(py::array_t<double> Xpy, py::array_t<double> Ypy) {
   return res;
 }
 
-PYBIND11_MODULE(example, m) {
+PYBIND11_MODULE(ddot, m) {
     m.doc() = "pybind11 example plugin"; // optional module docstring
 
     m.def("ddot", &ddot, "A function which computes the dot product of two vectors.");
