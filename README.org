@@ -9,9 +9,9 @@ A wheel is a way of distributing a Python package.
 $ pip install numpy
 Collecting numpy
   Downloading numpy-1.21.2-cp39-cp39-manylinux_2_12_x86_64.manylinux2010_x86_64.whl (15.8 MB)
-     |████████████████████████████████| 15.8 MB 65 kB/s 
+     |████████████████████████████████| 15.8 MB 65 kB/s
 Installing collected packages: numpy
-Successfully installed numpy-1.21.2  
+Successfully installed numpy-1.21.2
 #+end_example
 
 That file
@@ -28,7 +28,7 @@ There are mainly three sections to this walktrough:
 2. The ~manylinux~ policy(ies) and how to build portable wheels.
 3. Automatically building and releasing wheels on Continuous
    Integration systems.
-   
+
 * Example package
 
   The example package consists of two files:
@@ -43,7 +43,7 @@ There are mainly three sections to this walktrough:
   - The extension module is written using ~pybind11~ which a C++
     library that makes it easy interface Python and C++.
   - I used CMake to manage the build simply because CMake works well
-    with pybind11.  
+    with pybind11 (and this case is well documented).
   - Overall, the Python package is built with ~scikit-build~ which is
     a extension of ~setuptools~ that makes it easy to use CMake as
     part of the setup process.
@@ -98,7 +98,7 @@ There are mainly three sections to this walktrough:
 	  495  2021-09-04 09:02   septembrse-0.0.0.dist-info/RECORD
     ---------                     -------
 	94260                     6 files
-    
+
   #+end_example
 
   Now when you install this wheel, all ~pip~ has to do is copy the
@@ -157,7 +157,7 @@ There are mainly three sections to this walktrough:
   of Docker images]] you can use to buiold your wheels in.
 
   For instance the ~manylinux2014~ image is based on CentOS 7:
-  
+
   #+begin_src shell
     docker run -i -t -v `pwd`:/io quay.io/pypa/manylinux2014_x86_64 /bin/bash
   #+end_src
@@ -200,11 +200,11 @@ There are mainly three sections to this walktrough:
   create a new wheel yet.
 
   #+begin_example
-    [root@e42ba33f35c4 io]# auditwheel show septembrse-0.0.0-cp38-cp38-linux_x86_64.whl 
-    
+    [root@e42ba33f35c4 io]# auditwheel show septembrse-0.0.0-cp38-cp38-linux_x86_64.whl
+
     septembrse-0.0.0-cp38-cp38-linux_x86_64.whl is consistent with the
     following platform tag: "linux_x86_64".
-    
+
     The wheel references external versioned symbols in these
     system-provided shared libraries: libgcc_s.so.1 with versions
     {'GCC_3.0', 'GCC_3.3', 'GCC_4.2.0', 'GCC_4.3.0', 'GCC_3.3.1'},
@@ -215,7 +215,7 @@ There are mainly three sections to this walktrough:
     libgfortran.so.3 with versions {'GFORTRAN_1.0'}, libm.so.6 with
     versions {'GLIBC_2.2.5'}, libquadmath.so.0 with versions
     {'QUADMATH_1.0'}
-    
+
     This constrains the platform tag to "manylinux_2_17_x86_64". In order
     to achieve a more compatible tag, you would need to recompile a new
     wheel from source on a system with earlier versions of these
@@ -243,7 +243,7 @@ There are mainly three sections to this walktrough:
    libraries.
 
    #+begin_src shell
-     root@221b30d4d160:/io# ldd example_pkg/example.cpython-38-x86_64-linux-gnu.so 
+     root@221b30d4d160:/io# ldd example_pkg/example.cpython-38-x86_64-linux-gnu.so
 	     linux-vdso.so.1 (0x00007ffd2dfed000)
 	     libopenblas.so.0 => /usr/lib/libopenblas.so.0 (0x00007ff591260000)
 	     libstdc++.so.6 => /usr/lib/x86_64-linux-gnu/libstdc++.so.6 (0x00007ff590ede000)
@@ -256,13 +256,62 @@ There are mainly three sections to this walktrough:
 	     libquadmath.so.0 => /usr/lib/x86_64-linux-gnu/libquadmath.so.0 (0x00007ff58fea2000)
    #+end_src
 
-   Most of them are libraries you'd find on many GNU/Linux systems and
-   therefore no problem.  Our extension module was linked against the
-   OpenBLAS shared library that is not pre-installed. Further
-   different linux distributions package differnt versions and that's
-   going to make the wheel unusable on another system.
+   Most of these dependencies are libraries that we would expect to be
+   present on most GNU/Linux systems out there. But this is not the
+   case of ~libopenblas~ - which we installed manually as a build-time
+   dependency inside the /manylinux/ Docker image. In the current
+   state of things, a user could install the wheel fine, but at the
+   moment they would import the package it would break: ~libopenblas
+   not found~!
 
-   Python wheels can embed external shared libraries such a
-   libopenblas.  This makes the wheel self-contained and thereofre
-   portable.  The bundling of external shared libraries is performed
-   by ~auditwheel repair~.
+   The solution to this is simple: let's add ~libopenblas~ to the
+   wheel (remember, a wheel is nothing else than an archive). This is,
+   however, not enough. We also need to make sure that, at runtime,
+   the system knows where to look to find this shared library. This
+   can be done by modyfing the ~DT_RUNPATH~ list of directories in the
+   extension module shared library. This is rather technical and
+   error-prone, but ~auditwheel repair~ does the work for us. Prior to
+   creating the new /manylinux/ wheel, this command
+   1. Scans the dynamics dependencies for the wheel's extension
+      module(s)s and identifies those that are outside of a very
+      restricited set of shared libraries usually distributed by most
+      GNU/Linux distributions.
+   2. Copies the corresponding shared libraries (~.so~ file) into the
+      wheel.
+   3. Modifies the ~DT_RUNPATH~ (or ~DT_RPATH~) entry for the compiled
+      extension module(s) so that the dynamic linker finds these
+      shares libraries at runtime.
+
+   If use ~ldd~ on the ~example~ extension inside the manylinux wheel
+   this time, we see that a few shared libraries are now found inside
+   the wheel itself.
+
+   We now have a self-contained wheel that is usable across many linux
+   distributions.
+
+   I want to point out that this runtime dependency issue isn't
+   restricted to building wheels on GNU/Linux systems. On MacOS,
+   [[https://github.com/matthew-brett/delocate][delocate]] does a job similar to ~auditwheel~. On Windows, I haven't
+   found a way to embed dynamic dependecnies (~dll~ files) inside
+   ~win32~ or ~win64~ wheels. An alternative is to link these
+   dependencies statically.
+
+* Conclusion
+
+  That's all I wanted to show you today. If you're currently working
+  on a Python project or plan to do so, then I really encourage you to
+  dig a bit deeper into the topic. The material for this walthrough is
+  available online, along with a list of references for further
+  reading. I also encourage you distribute wheels for your projects,
+  it will make it much easier to use your package. Building wheels is
+  a relatively complex process for computers, but for us packagers not
+  so much. That is thanks to the work of the PyPA who maintain
+  manylinux and auditwheel, the contributors behing delocate and
+  cibuildwheel. So let's thank them and happy wheel building!
+
+* Pages
+
+  - delocate
+  - cibuildwheel
+  - manylinux
+  - framagit
