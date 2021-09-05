@@ -1,5 +1,5 @@
 # Base image
-FROM quay.io/pypa/manylinux2014_x86_64:latest
+FROM quay.io/pypa/manylinux2014_x86_64:2021-08-31-6f90a75
 
 # Install OpenBLAS
 RUN yum -y update && yum -y install openblas-devel
