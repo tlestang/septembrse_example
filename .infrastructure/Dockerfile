@@ -5,7 +5,9 @@ FROM quay.io/pypa/manylinux2014_x86_64:latest
 RUN yum -y update && yum -y install openblas-devel
 
 # Add source
-COPY setup.py CMakeLists.txt pybind11 src /wheel_build
+COPY setup.py pyproject.toml CMakeLists.txt /wheel_build/
+ADD pybind11 /wheel_build/pybind11
+ADD src /wheel_build/src
 
 WORKDIR /wheel_build
 
