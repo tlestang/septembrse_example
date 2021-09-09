@@ -2,6 +2,9 @@ This repository holds the example material for the walkthrough /What's
 the deal with Python wheels?/ presented at [[https://septembrse.society-rse.org/][the SeptembRSE conference]]
 in September 2021.
 
+The walkthrough is also available as a post on the Oxford RSE group's
+blog: https://www.rse.ox.ac.uk/tech_post/python_wheels/.
+
 * Abstract
 
   If you've ever installed a Python package, you've used them
