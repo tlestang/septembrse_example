@@ -1,21 +1,20 @@
-"""Setup example package
+"""This is a minimal setup.py to be able to use scikit-build
+
+https://scikit-build.readthedocs.io/en/latest/
+
+Project metadata including build-time requirements are declared in the
+pyproject.toml file, following PEP621
+(https://peps.python.org/pep-0621/).
+
+2022-11-25: Package location location still needs to be passed trough
+scikit-build.setup() instead of the pyproject.toml file, as it is
+processed by scikit-build.
+
 """
-from setuptools import find_packages
 from skbuild import setup
 
 setup(
-    name='septembrse',
-    license='GPLv3',
-    description='A simple example package for the walkthrough',
-    author='Thibault Lestang',
-    author_email='thibault.lestang@protonmail.com',
-    packages=find_packages('src'),
     package_dir={'': 'src'},
+    packages=["example_pkg"],
     cmake_install_dir="src/example_pkg",
-
-    entry_points={
-        'console_scripts': [
-            'septembrse = example_pkg.dot_prod:main',
-        ]
-    },
 )

@@ -1,2 +1,21 @@
+[project]
+name = "septembrse"
+version = "0.0.2"
+license = {text = "GPLv3"}
+description = "A simple example package for the walkthrough"
+authors = [
+  {email = "t.lestang@imperial.ac.uk"},
+  {name = "Thibault Lestang"}
+]
+[project.urls]
+repository="https://github.com/tlestang/septembrse_example"
+[project.scripts]
+septembrse = "example_pkg.dot_prod:main"
 [build-system]
-requires = ["setuptools", "wheel", "scikit-build", "cmake"]
+requires = [
+  "setuptools>=42",
+  "scikit-build",
+  "cmake",
+  "ninja; platform_system!='Windows'"
+]
+build-backend = "setuptools.build_meta"
