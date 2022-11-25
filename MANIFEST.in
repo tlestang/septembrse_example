@@ -1,0 +1,8 @@
+include CMakeLists.txt
+include LICENSE
+include pyproject.toml
+include setup.py
+include README.org
+include src/cpp/*.cpp
+graft src/example_pkg
+graft pybind11
