@@ -7,5 +7,4 @@ dist/
 *.tar.gz
 wheelhouse/
 *.dist-info/
-example_pkg/
 src/septembrse.egg-info/
